@@ -1,0 +1,14 @@
+<launch>
+    <node 
+        name="Configer"
+        pkg="rqt_reconfigure"
+        type="rqt_reconfigure"
+        output="screen"
+    />
+    <node 
+        name="range_image_viewer" 
+        pkg="aiimooc_wcm" 
+        type="range_image_node" 
+        output="screen"
+    />
+</launch>
