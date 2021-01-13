@@ -9,7 +9,7 @@
 #include <pcl_conversions/pcl_conversions.h>
 #include <dynamic_reconfigure/server.h>
 
-#include "aiimooc_wcm/RangeImgConfig.h"
+#include "range_img/RangeImgConfig.h"
 
 using Point = pcl::PointXYZI;
 using PointCloud = pcl::PointCloud<Point>;
@@ -52,7 +52,7 @@ void dynamic_callback(range_image_viewer::RangeImgConfig &cfg, uint32_t level)
 
 int main (int argc, char** argv)
 {
-    ros::init(argc, argv, "pointcloud_to_rangeimg_node");
+    ros::init(argc, argv, "range_img_node");
     ros::NodeHandle nh("~");
 
     dynamic_reconfigure::Server <range_image_viewer::RangeImgConfig> server;

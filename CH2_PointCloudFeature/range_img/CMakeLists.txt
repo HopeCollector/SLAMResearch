@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0.2)
-project(aiimooc_wcm LANGUAGES CXX CUDA)
+project(range_img LANGUAGES CXX)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 # add_compile_options(-std=c++11)
@@ -15,7 +15,6 @@ find_package(catkin REQUIRED COMPONENTS
   dynamic_reconfigure
 )
 find_package(PCL REQUIRED)
-find_package(CUDA REQUIRED)
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -128,9 +127,6 @@ include_directories(
 # add_library(${PROJECT_NAME}
 #   src/${PROJECT_NAME}/aiimooc_wcm.cpp
 # )
-add_library(CalFeatureLib STATIC src/cuda_cal_feature.cu)
-target_compile_features(CalFeatureLib PUBLIC cxx_std_11)
-set_target_properties(CalFeatureLib PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 
 ## Add cmake target dependencies of the library
 ## as an example, code may need to be generated before libraries
@@ -140,9 +136,7 @@ set_target_properties(CalFeatureLib PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
-add_executable(range_image src/range_image.cpp)
-add_executable(bev_image src/bev_image.cpp)
-add_executable(eigenfeature src/eigenfeature.cpp)
+add_executable(range_img src/range_img.cpp)
 
 
 ## Rename C++ executable without prefix
@@ -156,20 +150,9 @@ add_executable(eigenfeature src/eigenfeature.cpp)
 # add_dependencies(${PROJECT_NAME}_node CalFeatureLib ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
-target_link_libraries(range_image
+target_link_libraries(range_img
   ${catkin_LIBRARIES}
   ${PCL_LIBRARIES}
-)
-
-target_link_libraries(bev_image
-  ${catkin_LIBRARIES}
-  ${PCL_LIBRARIES}
-)
-
-target_link_libraries(eigenfeature
-  ${catkin_LIBRARIES}
-  ${PCL_LIBRARIES}
-  CalFeatureLib
 )
 
 #############

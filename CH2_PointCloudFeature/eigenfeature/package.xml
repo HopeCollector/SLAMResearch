@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <package format="2">
-  <name>aiimooc_wcm</name>
+  <name>eigenfeature</name>
   <version>0.0.0</version>
-  <description>The aiimooc_wcm package</description>
+  <description>The eigenfeature package</description>
 
   <!-- One maintainer tag required, multiple allowed, one person per tag -->
   <!-- Example:  -->
@@ -19,7 +19,7 @@
   <!-- Url tags are optional, but multiple are allowed, one per tag -->
   <!-- Optional attribute type can be: website, bugtracker, or repository -->
   <!-- Example: -->
-  <!-- <url type="website">http://wiki.ros.org/aiimooc_wcm</url> -->
+  <!-- <url type="website">http://wiki.ros.org/eigenfeature</url> -->
 
 
   <!-- Author tags are optional, multiple are allowed, one per tag -->
@@ -61,12 +61,6 @@
   <exec_depend>pcl_ros</exec_depend>
   <exec_depend>roscpp</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>
-
-  <build_depend>dynamic_reconfigure</build_depend>
-  <build_export_depend>dynamic_reconfigure</build_export_depend>
-  <exec_depend>dynamic_reconfigure</exec_depend>
-
-
   <!-- The export tag contains other, unspecified, tags -->
   <export>
     <!-- Other tools can request additional information be placed here -->

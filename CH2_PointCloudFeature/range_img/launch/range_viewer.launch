@@ -7,7 +7,7 @@
     />
     <node 
         name="range_image_viewer" 
-        pkg="aiimooc_wcm" 
+        pkg="range_img" 
         type="range_image_node" 
         output="screen"
     />
