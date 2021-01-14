@@ -4,6 +4,18 @@ project(eigenfeature LANGUAGES CXX)
 ## Compile as C++11, supported in ROS Kinetic and newer
 # add_compile_options(-std=c++11)
 
+execute_process(COMMAND "lsb_release" -rs
+    OUTPUT_VARIABLE SYSTEM_RELEASE
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+if(SYSTEM_RELEASE MATCHES "20.04")
+  message("Using c++14")
+  add_compile_options(-std=c++14)
+else()
+  message("Using c++11")
+  add_compile_options(-std=c++11)
+endif()
+
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages

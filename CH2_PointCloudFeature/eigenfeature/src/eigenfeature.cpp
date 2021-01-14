@@ -15,7 +15,7 @@ using PointCloud = pcl::PointCloud<Point>;
 void ros_callback(const sensor_msgs::PointCloud2ConstPtr& msg)
 {
     PointCloud::Ptr pc(new PointCloud);
-    pcl::Indices indices;
+    std::vector<int> indices;
     pcl::KdTreeFLANN<Point> kdtree; // 用于搜索最近点
 
 
@@ -99,9 +99,8 @@ void ros_callback(const sensor_msgs::PointCloud2ConstPtr& msg)
         features[1] = (e[1]-e[2])/e[0];
         features[2] = e[2]/e[0];
         features[3] = std::cbrt(std::accumulate(e.begin(), e.end(), 0))*3.0f;
-        features[4] = 0;
+        features[4] = -e[0] * std::log(e[0]) - e[1] * std::log(e[1]) - e[2] * std::log(e[2]);
         features[5] = 3.0f*e[2];
-        std::for_each(e.begin(), e.end(), [&](float ev){features[4] -= ev*std::log(ev);});
 
         // 将结果写入文件，空格分开，最有追加一个换行
         // 这种特殊的换行有清空缓冲区的效果

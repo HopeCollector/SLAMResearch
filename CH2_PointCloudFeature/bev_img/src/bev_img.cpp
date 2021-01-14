@@ -23,7 +23,7 @@ void ros_callback(const sensor_msgs::PointCloud2ConstPtr& msg)
     // 也不需要重新为它们分配内存空间，可以稍微提升运行效率
     static PointCloud pc;
     static sensor_msgs::Image out_img;
-    static pcl::Indices idies; // 用来保存数据为 Nan 的点在点云中的下标，某些时候肯能有用
+    static std::vector<int> idies; // 用来保存数据为 Nan 的点在点云中的下标，某些时候肯能有用
     pcl::fromROSMsg(*msg, pc);
 
     // is_dense 用于确定点云中的点是否全部有效（没有数据是 Nan）
