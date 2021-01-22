@@ -115,6 +115,16 @@ if __name__ == "__main__":
     tracklet_file = path + "/" + "tracklet_labels.xml"
     use_gt = os.path.exists(tracklet_file)
 
+
+    ######################## 读取文件 ###########################
+    """
+    读取文件
+    - 时间辍
+    - 点云文件
+    - GPS/IMU 文件
+    - 2号彩色相机的图像文件
+    - 激光雷达到相机的坐标系变换文件
+    """
     timestamps = []
     with open(timestamp_file, 'r') as f:
         for line in f.readlines():
@@ -196,6 +206,7 @@ if __name__ == "__main__":
     print("     ----------- P_velo_image -----------")
     print(P_velo_to_img)
     print("\n\n")
+    ######################## 读取文件 ###########################
 
     # bounding_boxes[frame index]
     if use_gt:
@@ -211,18 +222,20 @@ if __name__ == "__main__":
             print("[INFO] ros node had shutdown...")
             sys.exit(0)
 
-        ##TODO read data
+        ##TODO read data 加载点云数据
         pc = Preprocessor.load_pc_from_bin(bin_path + "/" + bin_files[idx])
 
         print("\n[",timestamps[idx],"]","# of Point Clouds:", pc.size)
 
+        # 加载图像数据
         image = cv2.imread(img_path + "/" + img_files[idx])
 
-        ##TODO timestamp
+        ##TODO timestamp 根据点云的时间辍数据生成 ROS 时间辍
         #header_.stamp = rospy.Time.from_sec(timestamps[idx].total_seconds())
         # print (timestamps[idx] - dt.datetime(1970,1,1)).total_seconds()
         header_.stamp = rospy.Time.from_sec((timestamps[idx] - dt.datetime(1970,1,1)).total_seconds())
 
+        # 维护一个 tf 坐标变换关系
         """
             :param translation: the translation of the transformtion as a tuple (x, y, z)
             :param rotation: the rotation of the transformation as a tuple (x, y, z, w)
@@ -230,6 +243,8 @@ if __name__ == "__main__":
             :param child: child frame in tf, string
             :param parent: parent frame in tf, string
             Broadcast the transformation from tf frame child to parent on ROS topic ``"/tf"``.
+            
+            world - imu - vel
         """
         static_tf_sender.sendTransform(translation_static, quaternion_static,
                                        header_.stamp,
@@ -254,8 +269,23 @@ if __name__ == "__main__":
 
         if filter_by_camera_angle_:
             # Camera angle filters
+            # 返回以 x 轴为中心，左右两边各 45度 共 90度 的视角内的点云，将多余的点云扔掉
             pc = Preprocessor.filter_by_camera_angle(pc)
             # XYZRGB point cloud and depth image
+            """
+            首先，将点云投影到相机平面，得到每个点在相机平面内的像素坐标
+            然后
+            - 将每个点对应像素点位置的颜色复制到 rgb 点云中
+            - 将深度图中每个像素的颜色按照对应点云（坐标系已转换到相机坐标系 cam2）中的点到原点的距离进行染色
+            最后返回 pc_rgb image_depth
+
+            投影中使用 pos_img = P_rect_02 * T_vel_to_cam * pos_xyz
+            转换坐标系中使用 pos_xyz_cam = T_vel_to_cam * pos_xyz_vel
+
+            点云中每个点的坐标系转换流程，两个变换矩阵负责的变换范围
+            vel - cam0 - cam2(基于 cam2 的坐标系) - cam2_img(此时的三维点被投影到相机平面)
+            |________T_vel_to_cam_____________|   |_________P_vel_to_cam__________|
+            """
             pc_rgb, image_depth = Preprocessor.lidar_camera_fusion(pc, image, T_velo_to_cam, P_velo_to_img)
 
         places = None
@@ -273,10 +303,6 @@ if __name__ == "__main__":
 
             # Create 8 corners of bounding box
             corners = Preprocessor.get_boxcorners(places, rotates_z, size)
-        
-        pc_rgb = pc_rgb.tolist()
-        for p in pc_rgb:
-            p[3] = int(p[3])
 
         KittiPublisher.publish_raw_clouds(pub_points, header_, pc)
         KittiPublisher.publish_rgb_clouds(pub_points_rgb, header_, pc_rgb)

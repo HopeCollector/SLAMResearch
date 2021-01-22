@@ -63,6 +63,7 @@ class KittiPreprocessor(object):
 
     """
       Filter camera angles for KiTTI Datasets
+      过滤出以 x 轴为中心的，视角为 90 度的点云
     """
     @staticmethod
     def filter_by_camera_angle(pc):
@@ -172,14 +173,23 @@ class KittiPreprocessor(object):
         image_depth = image.copy()
 
         # XYZRGB point cloud
-        pc_rgb = np.zeros((point_cloud.shape[0], 4), dtype=np.float32)
-        pc_rgb[:, :3] = point_cloud[:, :3]
+        # 这样定义数据可以规避类型不匹配的问题，同时能保证速度
+        pc_rgb = np.zeros((point_cloud.shape[0], 1), \
+            dtype={ 
+                "names": ( "x", "y", "z", "rgba" ), 
+                "formats": ( "f4", "f4", "f4", "u4" )
+            }
+        )
+        # 就是赋值的时候有点麻烦
+        pc_rgb["x"] = point_cloud[:, 0].reshape(-1, 1)
+        pc_rgb["y"] = point_cloud[:, 1].reshape(-1, 1)
+        pc_rgb["z"] = point_cloud[:, 2].reshape(-1, 1)
 
         xyz = point_cloud.copy()
         xyz[:,3] = 1.0
-        # project into image
+        # 将三维中的点投影到相机平面上
         velo_img = np.dot(P_velo_image, xyz.T).T
-        # normalize homogeneous coordinates
+        # 归一化齐次坐标，虽然论文里写的是乘一个投影矩阵就行了，但实际上得到的坐标中 w 不是 1，需要下面的操作归一化
         velo_img = np.true_divide(velo_img[:,:2], velo_img[:,[-1]])
         velo_img = np.round(velo_img).astype(np.uint16)
 
@@ -188,7 +198,8 @@ class KittiPreprocessor(object):
         depth = np.sqrt(np.square(pc_img[:, 0]) + np.square(pc_img[:, 1]) + np.square(pc_img[:, 2]))
         depth_min = min(depth)
         depth_max = max(depth)
-        depth = depth / (depth_max - depth_min)
+        # 这里将 depth 归一化，方便后面生成颜色
+        depth = (depth - depth_min) / (depth_max - depth_min)
 
         if is_gray:
             for pt in range(0, velo_img.shape[0]):
@@ -216,12 +227,10 @@ class KittiPreprocessor(object):
                     color =   (image[row_idx][col_idx][2] << 16) \
                               | (image[row_idx][col_idx][1] << 8) \
                               | image[row_idx][col_idx][0]
-                    pc_rgb[pt, 3] = color
+                    pc_rgb["rgba"][pt] = color
 
-                    # assign point cloud to image pixel
-                    ## use rainbow color band
-                    # cv_color = Color.get_rainbow_color(depth[pt])
-                    ## use jet color band
+                    # use jet color band
+                    # 使用 opencv 的调色盘生成彩虹色，这个函数只是一个外包装
                     cv_color = Color.get_jet_color(depth[pt] * 255)
                     # image_depth[row_idx][col_idx] = cv_color
                     cv_color = (int(cv_color[0]), int(cv_color[1]), int(cv_color[2]))

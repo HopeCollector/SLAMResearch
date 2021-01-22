@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 ### Point cloud
-from sensor_msgs.msg import PointField
+from sensor_msgs.msg import PointField, PointCloud2
 import sensor_msgs.point_cloud2 as pc2
 ### Ground truth's bounding box
 from geometry_msgs.msg import Pose
@@ -30,12 +30,29 @@ class Publisher(object):
 
     @staticmethod
     def publish_rgb_clouds(publisher, header, points):
-        fields = [PointField('x', 0, PointField.FLOAT32, 1),
-                  PointField('y', 4, PointField.FLOAT32, 1),
-                  PointField('z', 8, PointField.FLOAT32, 1),
-                  PointField('rgb', 12, PointField.UINT32, 1)]
-        cloud = pc2.create_cloud(header, fields, points)
-        publisher.publish(cloud)
+        msg = PointCloud2()
+        msg.header = header
+
+        if len(points.shape) == 3:
+            msg.height = points.shape[1]
+            msg.width = points.shape[0]
+        else:
+            msg.height = 1
+            msg.width  = points.shape[0]
+
+        msg.fields = [
+            PointField('x',  0, PointField.FLOAT32, 1),
+            PointField('y',  4, PointField.FLOAT32, 1),
+            PointField('z',  8, PointField.FLOAT32, 1),
+            PointField('rgb', 12, PointField.UINT32, 1),
+            ]
+
+        msg.is_bigendian = False
+        msg.point_step   = 16
+        msg.row_step     = msg.point_step * points.shape[0]
+        msg.is_dense     = True
+        msg.data         = points.tostring()
+        publisher.publish(msg)
 
 
     @staticmethod
