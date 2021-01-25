@@ -1,0 +1,26 @@
+<launch>
+    <node 
+        name="Configer"
+        pkg="rqt_reconfigure"
+        type="rqt_reconfigure"
+        output="screen"
+    />
+    <node 
+        name="ground_removal" 
+        pkg="seg_rslidar"
+        type="ground_removal"
+        output="screen"
+        ns="seg_rslidar"
+    />
+    <node 
+        name="cluster" 
+        pkg="seg_rslidar"
+        type="cluster"
+        output="screen"
+        ns="seg_rslidar"
+    >
+        <remap from="cluster/above_ground" to="ground_removal/above_ground" />
+        <remap from="cluster/ground" to="ground_removal/ground" />
+    </node>
+  <node name="rviz" pkg="rviz" type="rviz"  args="-d $(find seg_rslidar)/rviz/rviz.rviz" />
+</launch>
