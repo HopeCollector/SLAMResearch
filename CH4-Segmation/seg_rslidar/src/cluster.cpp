@@ -9,122 +9,177 @@
 #include <pcl/point_types.h>
 #include <pcl/common/common.h>
 #include <pcl/PointIndices.h>
+#include <pcl/filters/extract_indices.h>
+#include <pcl/filters/voxel_grid.h>
 #include <pcl/features/normal_3d.h>
 #include <pcl/search/search.h>
 #include <pcl/search/kdtree.h>
-#include <pcl/segmentation/region_growing.h>
+#include <pcl/segmentation/conditional_euclidean_clustering.h>
 
 #include <iostream>
 #include <vector>
+#include <limits>
 #include "seg_rslidar/SegRslidarConfig.h"
 
-using PointType = pcl::PointXYZ;
+using PointT = pcl::PointXYZI;
+using PointCloudT = pcl::PointCloud<PointT>;
 using pcl::Normal;
 
-float smothness_threshold = 10.0/180.0*M_PI;
-float curvature_threshold = 1.0;
-ros::Publisher pub_pc;
-ros::Publisher pub_pc_ground;
+float smothness_threshold;
+float cluster_tolerance;
+ros::Publisher pub_pc_env;
+ros::Publisher pub_pc_obj;
 ros::Publisher pub_marker;
-pcl::PointCloud<PointType>::Ptr cloud_ground(new pcl::PointCloud<PointType>);
-
-void ros_callback_ground(const sensor_msgs::PointCloud2ConstPtr& msg)
-{
-    pcl::fromROSMsg(*msg, *cloud_ground);
-}
 
 void ros_callback(const sensor_msgs::PointCloud2ConstPtr& msg)
 {
     // load pointcloud
-    static pcl::PointCloud<PointType>::Ptr cloud(new pcl::PointCloud<PointType>);
+    static PointCloudT::Ptr cloud(new PointCloudT);
+    static pcl::search::Search<PointT>::Ptr tree(new pcl::search::KdTree<PointT>);
     pcl::fromROSMsg(*msg, *cloud);
 
-    // cal normal
-    static pcl::PointCloud<Normal>::Ptr normals(new pcl::PointCloud<Normal>);
-    static pcl::search::Search<PointType>::Ptr tree(new pcl::search::KdTree<PointType>);
+    // downsample
     {
-        static pcl::NormalEstimation<PointType, Normal> ne;
-        ne.setInputCloud(cloud);
-        ne.setSearchMethod(tree);
-        ne.setKSearch(30);
-        ne.compute(*normals);
+        static pcl::VoxelGrid<PointT> vg;
+        static bool is_init = false;
+        if(!is_init)
+        {
+            vg.setDownsampleAllData(true);
+            vg.setLeafSize(0.5, 0.5, 0.5);
+            vg.setInputCloud(cloud);
+            is_init = true;
+        }
+        vg.filter(*cloud);
     }
 
     // segment
     static std::vector<pcl::PointIndices> clusters;
-    static pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_color;
     {
-        static pcl::RegionGrowing<PointType, Normal> reg;
+        static pcl::ConditionalEuclideanClustering<PointT> cgc;
+        static bool is_init = false;
+        if(!is_init)
+        {
+            cgc.setSearchMethod(tree);
+            cgc.setMinClusterSize(cloud->size() / 1000);
+            cgc.setMaxClusterSize(cloud->size()/5);
+            cgc.setInputCloud(cloud);
+            cgc.setConditionFunction([](PointT a, PointT b, float sq_dis) { return (b.intensity < 254.0); });
+            is_init = true;
+        }
+
         clusters.clear();
-        reg.setMinClusterSize(50);
-        reg.setMaxClusterSize(10000);
-        reg.setSearchMethod(tree);
-        reg.setNumberOfNeighbours(50);
-        reg.setInputCloud(cloud);
-        reg.setInputNormals(normals);
-        reg.setSmoothnessThreshold(smothness_threshold);
-        reg.setCurvatureThreshold(curvature_threshold);
-        reg.extract(clusters);
-        cloud_color = reg.getColoredCloud();
+        cgc.setClusterTolerance(cluster_tolerance);
+        cgc.segment(clusters);
     }
 
-    // publish
+    // extract bounding box & env/obj points
+    static std::vector<std::pair<Eigen::Vector4f, Eigen::Vector4f>> bboxes;
+    static PointCloudT::Ptr cloud_env(new PointCloudT);
+    static PointCloudT::Ptr cloud_obj(new PointCloudT);
     {
-        static visualization_msgs::MarkerArray mks;
-        static visualization_msgs::Marker mk;
-        static Eigen::Vector4f p_min, p_max;
+        static std::vector<bool> is_env_point;
 
-        mk.header = msg->header;
-        mk.ns = "marker";
-        mk.type = visualization_msgs::Marker::CUBE;
-        mk.action = visualization_msgs::Marker::MODIFY;
-        mk.pose.orientation.x = 0;
-        mk.pose.orientation.y = 0;
-        mk.pose.orientation.z = 0;
-        mk.pose.orientation.w = 1;
-        mk.color.r = 1.0;
-        mk.color.g = 0;
-        mk.color.b = 0;
-        mk.color.a = 0.15;
+        // get enough space for data
+        bboxes.clear();
+        cloud_env->clear();
+        if (cloud_env->points.capacity() < cloud->size()) cloud_env->reserve(cloud->size());
+        cloud_obj->clear();
+        if (cloud_obj->points.capacity() < cloud->size()) cloud_obj->reserve(cloud->size());
+        is_env_point.resize(cloud->size());
+        std::fill(is_env_point.begin(), is_env_point.end(), true);
 
-        mks.markers.clear();
-        mks.markers.reserve(clusters.size());
-        for(int i = 0, cnt = 0; i < clusters.size(); i++)
+        Eigen::Vector4f p_min, p_max;
+        for (const auto& cluster : clusters) {
+            pcl::getMinMax3D(*cloud, cluster, p_min, p_max);
+            auto v = (p_max-p_min).head(3);
+            if (v.dot(v) < 125 )
+            {
+                bboxes.push_back({p_min, p_max});
+                for(auto idx : cluster.indices)
+                    is_env_point[idx] = false;
+            }
+        }
+
+        PointT p;
+        for (int i = 0; i < cloud->size(); i++)
         {
-            pcl::getMinMax3D(*cloud, clusters[i], p_min, p_max);
-            auto tmp = Eigen::Vector3f((p_max-p_min).head<3>());
-            if(tmp.dot(tmp) > 225) continue;
-            
-            mk.id = cnt; cnt++;
+            memcpy(reinterpret_cast<char*>(p.data), reinterpret_cast<char*>(cloud->at(i).data), 3 * sizeof(float));
+            if (is_env_point[i])
+            {
+                cloud_env->emplace_back(p);
+            }else
+            {
+                cloud_obj->emplace_back(p);
+            }
+        }
+    }
+
+    // gen markers
+    static visualization_msgs::MarkerArray mks;
+    {
+        if(mks.markers.size() > bboxes.size())
+        {
+            for (size_t i = bboxes.size(); i < mks.markers.size(); i++)
+            {
+                mks.markers[i].action = visualization_msgs::Marker::DELETE;
+            }
+        }else
+        {
+            mks.markers.resize(bboxes.size());
+        }
+
+        for (int i = 0; i < bboxes.size(); i++)
+        {
+            auto& [p_min, p_max] = bboxes[i];
+            auto& mk = mks.markers[i];
+            mk.header = msg->header;
+            mk.id = i;
+            mk.ns = "marker";
+            mk.type = visualization_msgs::Marker::CUBE;
+            mk.action = visualization_msgs::Marker::MODIFY;
+            mk.pose.orientation.x = 0;
+            mk.pose.orientation.y = 0;
+            mk.pose.orientation.z = 0;
+            mk.pose.orientation.w = 1;
+            mk.color.r = 1.0;
+            mk.color.g = 0;
+            mk.color.b = 0;
+            mk.color.a = 0.15;
             mk.pose.position.x = (p_min[0]+p_max[0])/2.0;
             mk.pose.position.y = (p_min[1]+p_max[1])/2.0;
             mk.pose.position.z = (p_min[2]+p_max[2])/2.0;
             mk.scale.x = (p_max[0]-p_min[0]);
             mk.scale.y = (p_max[1]-p_min[1]);
             mk.scale.z = (p_max[2]-p_min[2]);
-            mks.markers.emplace_back(mk);
+        }
+    }
+
+    // publish results
+    {
+        static sensor_msgs::PointCloud2 msg_out_pc_env;
+        static sensor_msgs::PointCloud2 msg_out_pc_obj;
+        static bool is_init = false;
+        if(!is_init)
+        {
+            cloud_env->header = cloud->header;
+            cloud_obj->header = cloud->header;
+            is_init = true;
         }
 
-        static sensor_msgs::PointCloud2 msg_out_pc, msg_out_pc_ground;
-        pcl::toROSMsg(*cloud_color, msg_out_pc);
-        msg_out_pc.header = msg->header;
-        pub_pc.publish(msg_out_pc);
+        pcl::toROSMsg(*cloud_env, msg_out_pc_env);
+        pub_pc_env.publish(msg_out_pc_env);
+
+        pcl::toROSMsg(*cloud_obj, msg_out_pc_obj);
+        pub_pc_obj.publish(msg_out_pc_obj);
 
         pub_marker.publish(mks);
-
-        if(cloud_ground->size())
-        {
-            pcl::toROSMsg(*cloud_ground, msg_out_pc_ground);
-            pub_pc_ground.publish(msg_out_pc_ground);
-        }
     }
 
 }
 
 void dynamic_callback(seg_rslidar_param::SegRslidarConfig& cfg, uint32_t level)
 {
-    smothness_threshold = cfg.smothness_threshold;
-    curvature_threshold = cfg.curvature_threshold;
+    cluster_tolerance = cfg.cluster_tolerance;
 }
 
 int main(int argc, char** argv)
@@ -133,12 +188,13 @@ int main(int argc, char** argv)
     ros::NodeHandle nh("~");
     dynamic_reconfigure::Server<seg_rslidar_param::SegRslidarConfig> server;
 
+    nh.param("cluster_tolerance", cluster_tolerance, 1.0f);
+
     server.setCallback(dynamic_callback);
-    auto sub_pc = nh.subscribe<sensor_msgs::PointCloud2>("above_ground", 2, ros_callback);
-    auto sub_pc_ground = nh.subscribe<sensor_msgs::PointCloud2>("ground", 2, ros_callback_ground);
-    pub_pc = nh.advertise<sensor_msgs::PointCloud2>("classified_points", 2);
-    pub_pc_ground = nh.advertise<sensor_msgs::PointCloud2>("slow_ground", 2);
-    pub_marker = nh.advertise<visualization_msgs::MarkerArray>("marker", 2);
+    auto sub_pc = nh.subscribe<sensor_msgs::PointCloud2>("/ground_removal/points_all", 1, ros_callback);
+    pub_pc_env = nh.advertise<sensor_msgs::PointCloud2>("/cluster/points_env", 1);
+    pub_pc_obj = nh.advertise<sensor_msgs::PointCloud2>("/cluster/points_obj", 1);
+    pub_marker = nh.advertise<visualization_msgs::MarkerArray>("/cluster/marker", 1);
 
     ros::spin();
 

@@ -1,0 +1,16 @@
+<launch>
+    <node name="Configer" pkg="rqt_reconfigure" type="rqt_reconfigure" output="screen"> </node>
+
+    <node name="ground_removal"  pkg="seg_rslidar" type="ground_removal" output="screen">
+        <param name="pass_limit" type="double" value="-1.0"/>
+        <param name="planar_threshold" type="double" value="0.3"/>
+    </node>
+
+    <node name="cluster" pkg="seg_rslidar" type="cluster" output="screen">
+        <param name="cluster_tolerance" type="double" value="0.8"/>
+    </node>
+
+    <node name="lidarodom_node" pkg="lidarodom" type="lidarodom_node" output="screen"> </node>
+
+    <node name="rviz" pkg="rviz" type="rviz"  args="-d $(find lidarodom)/rviz/config.rviz"> </node>
+</launch>

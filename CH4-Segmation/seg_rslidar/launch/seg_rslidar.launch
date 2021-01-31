@@ -19,8 +19,6 @@
         output="screen"
         ns="seg_rslidar"
     >
-        <remap from="cluster/above_ground" to="ground_removal/above_ground" />
-        <remap from="cluster/ground" to="ground_removal/ground" />
     </node>
   <node name="rviz" pkg="rviz" type="rviz"  args="-d $(find seg_rslidar)/rviz/rviz.rviz" />
 </launch>

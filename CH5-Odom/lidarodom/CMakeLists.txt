@@ -1,6 +1,5 @@
 cmake_minimum_required(VERSION 3.0.2)
-project(seg_rslidar)
-set(CMAKE_BUILD_TYPE Debug)
+project(lidarodom)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 # add_compile_options(-std=c++11)
@@ -9,19 +8,11 @@ set(CMAKE_BUILD_TYPE Debug)
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
-  dynamic_reconfigure
   pcl_conversions
   roscpp
   sensor_msgs
-  visualization_msgs
 )
-find_package(PCL REQUIRED COMPONENT
-    io
-    search
-    filters
-    segmentation
-    visualization
-)
+find_package(PCL REQUIRED)
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -98,9 +89,10 @@ find_package(PCL REQUIRED COMPONENT
 ##     and list every .cfg file to be processed
 
 ## Generate dynamic reconfigure parameters in the 'cfg' folder
-generate_dynamic_reconfigure_options(
-  cfg/seg_rslidar_param.cfg
-)
+# generate_dynamic_reconfigure_options(
+#   cfg/DynReconf1.cfg
+#   cfg/DynReconf2.cfg
+# )
 
 ###################################
 ## catkin specific configuration ##
@@ -113,8 +105,8 @@ generate_dynamic_reconfigure_options(
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
 #  INCLUDE_DIRS include
-#  LIBRARIES aiimooc_wcm
-#  CATKIN_DEPENDS dynamic_reconfigure pcl_conversions roscpp sensor_msgs
+#  LIBRARIES lidarodom
+#  CATKIN_DEPENDS pcl_conversion roscpp sensor_msgs
 #  DEPENDS system_lib
 )
 
@@ -132,7 +124,7 @@ include_directories(
 
 ## Declare a C++ library
 # add_library(${PROJECT_NAME}
-#   src/${PROJECT_NAME}/aiimooc_wcm.cpp
+#   src/${PROJECT_NAME}/lidarodom.cpp
 # )
 
 ## Add cmake target dependencies of the library
@@ -143,13 +135,7 @@ include_directories(
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
-add_executable(ground_removal src/ground_removal.cpp)
-add_dependencies(ground_removal ${PROJECT_NAME}_gencfg)
-target_compile_options(ground_removal PUBLIC "-std=c++17")
-
-add_executable(cluster src/cluster.cpp)
-add_dependencies(cluster ${PROJECT_NAME}_gencfg)
-target_compile_options(cluster PUBLIC "-std=c++17")
+add_executable(${PROJECT_NAME}_node src/lidarodom_node.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -162,15 +148,11 @@ target_compile_options(cluster PUBLIC "-std=c++17")
 # add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
-target_link_libraries(ground_removal
+target_link_libraries(${PROJECT_NAME}_node
   ${catkin_LIBRARIES}
   ${PCL_LIBRARIES}
 )
 
-target_link_libraries(cluster
-  ${catkin_LIBRARIES}
-  ${PCL_LIBRARIES}
-)
 #############
 ## Install ##
 #############
@@ -218,7 +200,7 @@ target_link_libraries(cluster
 #############
 
 ## Add gtest based cpp test target and link libraries
-# catkin_add_gtest(${PROJECT_NAME}-test test/test_aiimooc_wcm.cpp)
+# catkin_add_gtest(${PROJECT_NAME}-test test/test_lidarodom.cpp)
 # if(TARGET ${PROJECT_NAME}-test)
 #   target_link_libraries(${PROJECT_NAME}-test ${PROJECT_NAME})
 # endif()
